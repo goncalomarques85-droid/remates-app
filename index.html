@@ -105,6 +105,7 @@ button.b.danger{color:var(--bad)}
 .dlg p{margin:0 0 4px;font-size:17px;font-weight:600}
 .status{font-size:14px;margin:8px 0 0}
 .status b{color:var(--face)}
+ul.warn{margin:8px 0 0;padding-left:20px;color:var(--face);font-size:14px}
 ul.prob{margin:8px 0 0;padding-left:20px;color:var(--bad);font-size:14px}
 ul.ok{list-style:none;padding:0;margin:0}
 ul.ok li{padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
@@ -124,8 +125,8 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     <label>Obra
       <select id="obra"></select>
     </label>
-    <label style="margin:0">Nome da peça
-      <input id="peca" placeholder="ex.: Platibanda frontal" autocomplete="off">
+    <label style="margin:0">Localização / edifício
+      <input id="peca" placeholder="ex.: Edifício A – fachada norte" autocomplete="off">
     </label>
   </section>
 
@@ -180,6 +181,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     <h2>Rever antes de enviar</h2>
     <ul class="ok" id="revList"></ul>
     <ul class="prob" id="revProb"></ul>
+    <ul class="warn" id="revWarn"></ul>
     <div class="row">
       <button class="b" id="btnBack" type="button">Voltar a editar</button>
       <button class="b primary" id="btnSend" type="button">Enviar</button>
@@ -246,7 +248,9 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   }
 
   /* ---------- geometria ---------- */
-  function effAng(r,i){ return (r.angs[i]||0) * (r.dirs[i]||1); }
+  /* r.angs[i] = ângulo INTERIOR entre duas abas consecutivas (180 = em linha, 90 = esquadria).
+     O desvio de direção usado no desenho é 180 - interior. */
+  function effAng(r,i){ var a=r.angs[i]; if(a==null||isNaN(a)) a=180; return (180-a) * (r.dirs[i]||1); }
   function geom(r){
     var x=0,y=0,h=r.h0*Math.PI/180, P=[{x:0,y:0}], D=[];
     for(var i=0;i<r.segs.length;i++){
@@ -274,7 +278,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
       while(t>180) t-=360; while(t<=-180) t+=360;
       var a=Math.abs(t), s=(t<0)?-1:1, best=Math.round(a/5)*5;
       for(var k=0;k<common.length;k++){ if(Math.abs(a-common[k])<=10){ best=common[k]; break; } }
-      angs.push(best); dirs.push(s);
+      angs.push(Math.max(5,180-best)); dirs.push(s);
     }
     r.segs=segs; r.angs=angs; r.dirs=dirs; r.h0=Math.round(hd[0]/45)*45;
     r.mode='edit'; r.face=null; r.ini={tipo:null,lado:null}; r.fim={tipo:null,lado:null};
@@ -434,17 +438,17 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   }
   function rowAng(r,i){
     var wrap=mk('div','ang-row'), row=mk('div','seg-row');
-    var nm=mk('div','name','Dobra '+(i+1)); var small=mk('small',null,'ângulo'); nm.append(small);
+    var nm=mk('div','name','Dobra '+(i+1)); var small=mk('small',null,'ângulo interior entre abas'); nm.append(small);
     var f=mk('div','field'), inp=document.createElement('input');
-    inp.type='number'; inp.inputMode='decimal'; inp.min='0'; inp.max='180'; inp.value=r.angs[i];
-    inp.setAttribute('aria-label','Ângulo da dobra '+(i+1)+' em graus');
-    inp.oninput=function(){ var v=parseFloat(inp.value)||0; r.angs[i]=Math.max(0,Math.min(180,v)); renderCanvas(); };
+    inp.type='number'; inp.inputMode='decimal'; inp.min='5'; inp.max='180'; inp.value=r.angs[i];
+    inp.setAttribute('aria-label','Ângulo interior da dobra '+(i+1)+' em graus');
+    inp.oninput=function(){ var v=parseFloat(inp.value); if(isNaN(v)) return; r.angs[i]=Math.max(5,Math.min(180,v)); renderCanvas(); };
     var flip=mk('button','b',dirTxt(r.dirs[i])); flip.type='button'; flip.style.flex='0 0 auto';
     flip.setAttribute('aria-label','Mudar o sentido da dobra '+(i+1));
     flip.onclick=function(){ r.dirs[i]=-r.dirs[i]; flip.textContent=dirTxt(r.dirs[i]); renderCanvas(); };
     f.append(inp, mk('span','unit','°'), flip); row.append(nm,f);
     var q=mk('div','quick');
-    [45,90,135].forEach(function(v){
+    [45,90,135,180].forEach(function(v){
       var b=mk('button','b',v+'°'); b.type='button';
       b.onclick=function(){ r.angs[i]=v; inp.value=v; renderCanvas(); };
       q.append(b);
@@ -472,17 +476,19 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
       t.append(b);
     });
     d.append(t);
-    var s=mk('div','row');
-    [['esquerda','↶ Esquerda'],['direita','Direita ↷']].forEach(function(o){
-      var b=mk('button','b'+(e.lado===o[0]?' on':''),o[1]); b.type='button';
-      b.onclick=function(){ e.lado=o[0]; renderEnds(); renderCanvas(); };
-      s.append(b);
-    });
-    d.append(s);
-    if(e.tipo||e.lado){
+    if(e.tipo){
+      var s=mk('div','row');
+      [['esquerda','↶ Esquerda'],['direita','Direita ↷']].forEach(function(o){
+        var b=mk('button','b'+(e.lado===o[0]?' on':''),o[1]); b.type='button';
+        b.onclick=function(){ e.lado=o[0]; renderEnds(); renderCanvas(); };
+        s.append(b);
+      });
+      d.append(s);
       var cl=mk('button','b','Sem tratamento nesta aba'); cl.type='button'; cl.style.marginTop='6px';
       cl.onclick=function(){ e.tipo=null; e.lado=null; renderEnds(); renderCanvas(); renderTotals(); };
       d.append(cl);
+    } else {
+      d.append(mk('p','hint','Sem tratamento. Podes concluir o remate assim; aparece só um aviso na revisão.'));
     }
     return d;
   }
@@ -498,7 +504,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     var c=calc(cur());
     if(!c){ $('#totBig').textContent='—'; $('#totSm').textContent='perfil por concluir'; return; }
     $('#totBig').textContent=fmt(c.total)+' mm';
-    var falta=(!cur().ini.tipo||!cur().fim.tipo)?' · pontas por escolher':'';
+    var falta=(!cur().ini.tipo||!cur().fim.tipo)?' · aba sem tratamento':'';
     $('#totSm').innerHTML='troços '+fmt(c.trocos)+' + pontas '+fmt(c.pontas)+'<br>cotas interiores'+falta;
   }
 
@@ -580,19 +586,29 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   function problems(){
     var out=[];
     if(!S.obra) out.push('Escolhe a obra.');
-    if(!S.peca.trim()) out.push('Falta o nome da peça.');
+    if(!S.peca.trim()) out.push('Falta a localização / edifício.');
     S.rem.forEach(function(r,i){
       var n='Remate '+(i+1)+': ';
       if(!r.zona.trim()) out.push(n+'falta a zona.');
       if(r.mode!=='edit'||r.segs.length<1){ out.push(n+'perfil por concluir.'); return; }
       if(r.segs.some(function(v){return !(v>0);})) out.push(n+'há troços sem medida.');
-      if(!r.ini.tipo||!r.ini.lado) out.push(n+'aba inicial incompleta.');
-      if(!r.fim.tipo||!r.fim.lado) out.push(n+'aba final incompleta.');
+      if(r.ini.tipo&&!r.ini.lado) out.push(n+'aba inicial: falta o lado (esquerda/direita).');
+      if(r.fim.tipo&&!r.fim.lado) out.push(n+'aba final: falta o lado (esquerda/direita).');
       if(!r.face) out.push(n+'falta o lado da cor principal.');
       r.meds.forEach(function(m,k){
         if(!(+m.comp>0)) out.push(n+'medida '+(k+1)+': falta o comprimento.');
         if(!(+m.qtd>=1)) out.push(n+'medida '+(k+1)+': falta a quantidade.');
       });
+    });
+    return out;
+  }
+  function avisos(){
+    var out=[];
+    S.rem.forEach(function(r,i){
+      if(r.mode!=='edit') return;
+      var n='Remate '+(i+1)+': ';
+      if(!r.ini.tipo) out.push(n+'aba inicial sem tratamento.');
+      if(!r.fim.tipo) out.push(n+'aba final sem tratamento.');
     });
     return out;
   }
@@ -604,8 +620,8 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
         return {
           numero:i+1, zona:r.zona.trim(),
           trocos_mm:r.segs.map(Number),
-          dobras:r.angs.map(function(a,k){ return {angulo_graus:a, sentido:r.dirs[k]<0?'esquerda':'direita'}; }),
-          aba_inicial:r.ini, aba_final:r.fim,
+          dobras:r.angs.map(function(a,k){ return {angulo_interior_graus:a, sentido:r.dirs[k]<0?'esquerda':'direita'}; }),
+          aba_inicial:r.ini.tipo?r.ini:{tipo:null,lado:null}, aba_final:r.fim.tipo?r.fim:{tipo:null,lado:null},
           face_cor_principal:r.face,
           lados_relativos_a:'sentido inicio-fim',
           desenvolvimento_mm:c?c.total:null,
@@ -624,6 +640,8 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     });
     var pr=problems(), pl=$('#revProb'); pl.innerHTML='';
     pr.forEach(function(t){ var li=document.createElement('li'); li.textContent=t; pl.append(li); });
+    var wl=$('#revWarn'); wl.innerHTML='';
+    avisos().forEach(function(t){ var li=document.createElement('li'); li.textContent='Aviso · '+t; wl.append(li); });
     $('#btnSend').disabled=pr.length>0;
     $('#sendMsg').hidden=true; $('#json').hidden=true; $('#copyRow').hidden=true;
     $('#review').hidden=false;

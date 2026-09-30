@@ -619,6 +619,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
         var c=calc(r);
         return {
           numero:i+1, zona:r.zona.trim(),
+          orientacao_inicial_graus:r.h0,
           trocos_mm:r.segs.map(Number),
           dobras:r.angs.map(function(a,k){ return {angulo_interior_graus:a, sentido:r.dirs[k]<0?'esquerda':'direita'}; }),
           aba_inicial:r.ini.tipo?r.ini:{tipo:null,lado:null}, aba_final:r.fim.tipo?r.fim:{tipo:null,lado:null},

@@ -127,6 +127,12 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
 <main>
   <h1>Levantamento de remates</h1>
 
+  <section class="card" id="instalar" hidden>
+    <strong>Instalar no telemóvel</strong>
+    <p class="hint" id="instalarTxt" style="margin-top:6px"></p>
+    <button class="b" id="btnFecharInst" type="button" style="margin-top:8px">Já está instalada / dispensar</button>
+  </section>
+
   <section class="card head-card">
     <label>Obra
       <select id="obra"></select>
@@ -660,14 +666,16 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     $('#btnSend').disabled=pr.length>0;
     $('#sendMsg').hidden=true; $('#json').hidden=true; $('#copyRow').hidden=true;
     var dentro = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
-    $('#acesso').hidden = !!dentro; if(!dentro && !$('#chave').value) $('#chave').value=lerChave();
+    $('#acesso').hidden = !!dentro || !!lerChave();
     $('#saveRow').hidden=true;
     $('#review').hidden=false;
     $('#review').scrollIntoView({behavior:'smooth',block:'start'});
   }
   var lastDxf=null;
-  function lerChave(){ try{ return localStorage.getItem('remates_chave')||''; }catch(e){ return ''; } }
+  function chaveDoLink(){ try{ var m=location.hash.match(/[#&]k=([^&]+)/); return m?decodeURIComponent(m[1]):''; }catch(e){ return ''; } }
+  function lerChave(){ var g=''; try{ g=localStorage.getItem('remates_chave')||''; }catch(e){} return chaveDoLink()||g; }
   function gravarChave(v){ try{ localStorage.setItem('remates_chave',v); }catch(e){} }
+  (function(){ var k=chaveDoLink(); if(k) gravarChave(k); })();
   function guardarDxf(){
     if(!lastDxf) return;
     var blob=new Blob([lastDxf.text],{type:'application/dxf'});
@@ -712,6 +720,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
         }
         else {
           msg.textContent = (x.j && x.j.erro==='nao autorizado') ? (uid ? 'Sem autorização para enviar.' : 'Chave de acesso errada.') : 'Não foi possível enviar. Tenta outra vez.';
+          if(x.j && x.j.erro==='nao autorizado' && !uid){ gravarChave(''); $('#chave').value=''; $('#acesso').hidden=false; }
           $('#btnSend').disabled=false; mostraDados();
         }
       })
@@ -739,6 +748,19 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   $('#zona').oninput=function(){ cur().zona=this.value; renderChips(); renderZonas(); };
   $('#notas').oninput=function(){ cur().notas=this.value; };
   $('#btnSave').onclick=guardarDxf;
+  (function(){
+    var dentroTg = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
+    var instalada = (window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    var dispensada=false; try{ dispensada = localStorage.getItem('remates_inst')==='1'; }catch(e){}
+    if(dentroTg || instalada || dispensada) return;
+    var ua=navigator.userAgent||'';
+    var ios=/iPhone|iPad|iPod/.test(ua), android=/Android/.test(ua);
+    var t = ios ? 'No Safari, toca no botão Partilhar (quadrado com seta para cima, em baixo no ecrã) e depois em "Adicionar ao ecrã principal". A app fica com um ícone, como as outras. Tem de ser no Safari.'
+          : android ? 'No Chrome, toca no menu (três pontos, em cima à direita) e depois em "Instalar app" ou "Adicionar ao ecrã principal".'
+          : 'No telemóvel, abre este mesmo link e usa "Adicionar ao ecrã principal" no menu do navegador.';
+    $('#instalarTxt').textContent=t; $('#instalar').hidden=false;
+    $('#btnFecharInst').onclick=function(){ $('#instalar').hidden=true; try{ localStorage.setItem('remates_inst','1'); }catch(e){} };
+  })();
   $('#btnAddMed').onclick=function(){ cur().meds.push({comp:'',qtd:1}); renderMeds(); };
   $('#btnDup').onclick=duplicar;
   $('#mat').oninput=function(){ cur().mat=this.value; };

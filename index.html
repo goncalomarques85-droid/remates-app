@@ -674,7 +674,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     try{
       var file=new File([blob],lastDxf.name,{type:'application/dxf'});
       if(navigator.canShare && navigator.canShare({files:[file]})){
-        navigator.share({files:[file],title:lastDxf.name}).catch(function(){});
+        navigator.share({files:[file]}).catch(function(){});
         return;
       }
     }catch(e){}

@@ -669,18 +669,23 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   (function(){ var k=chaveDoLink(); if(k) gravarChave(k); })();
   function guardarDxf(){
     if(!lastDxf) return;
-    var blob=new Blob([lastDxf.text],{type:'application/dxf'});
-    /* o iOS trata tipos desconhecidos como texto; tenta tipos genéricos de ficheiro */
-    var tipos=['application/octet-stream','text/plain'];
-    for(var t=0;t<tipos.length;t++){
-      try{
-        var file=new File([lastDxf.text],lastDxf.name,{type:tipos[t]});
-        if(navigator.canShare && navigator.canShare({files:[file]})){
-          navigator.share({files:[file]}).catch(function(){});
-          return;
-        }
-      }catch(e){}
+    var ua=navigator.userAgent||'';
+    /* telemóvel/tablet: folha de partilhar do sistema (permite "Guardar em Ficheiros"); computador: descarregar direto */
+    var movel=/iPhone|iPad|iPod|Android/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints>1);
+    if(movel){
+      /* o iOS trata tipos desconhecidos como texto; tenta tipos genéricos de ficheiro */
+      var tipos=['application/octet-stream','text/plain'];
+      for(var t=0;t<tipos.length;t++){
+        try{
+          var file=new File([lastDxf.text],lastDxf.name,{type:tipos[t]});
+          if(navigator.canShare && navigator.canShare({files:[file]})){
+            navigator.share({files:[file]}).catch(function(){});
+            return;
+          }
+        }catch(e){}
+      }
     }
+    var blob=new Blob([lastDxf.text],{type:'application/octet-stream'});
     var a=document.createElement('a');
     a.href=URL.createObjectURL(blob); a.download=lastDxf.name;
     document.body.appendChild(a); a.click();

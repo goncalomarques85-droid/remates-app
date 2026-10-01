@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#1f5f8b">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{
   --bg:#e9edf0; --card:#f8fafb; --ink:#16212a; --muted:#56646f; --line:#cfd6db;
@@ -130,7 +131,10 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   <section class="card" id="instalar" hidden>
     <strong>Instalar no telemóvel</strong>
     <p class="hint" id="instalarTxt" style="margin-top:6px"></p>
-    <button class="b" id="btnFecharInst" type="button" style="margin-top:8px">Já está instalada / dispensar</button>
+    <div class="row" style="margin-top:8px">
+      <button class="b primary" id="btnInstalar" type="button" hidden>Instalar</button>
+      <button class="b" id="btnFecharInst" type="button">Dispensar</button>
+    </div>
   </section>
 
   <section class="card head-card">
@@ -751,16 +755,37 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   (function(){
     var dentroTg = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
     var instalada = (window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    function marcar(){ try{ localStorage.setItem('remates_inst','1'); }catch(e){} }
+    if(instalada) marcar();
+    var box=$('#instalar'), txt=$('#instalarTxt'), btn=$('#btnInstalar');
+    window.addEventListener('appinstalled', function(){ marcar(); box.hidden=true; });
     var dispensada=false; try{ dispensada = localStorage.getItem('remates_inst')==='1'; }catch(e){}
     if(dentroTg || instalada || dispensada) return;
     var ua=navigator.userAgent||'';
     var ios=/iPhone|iPad|iPod/.test(ua), android=/Android/.test(ua);
-    var t = ios ? 'No Safari, toca no botão Partilhar (quadrado com seta para cima, em baixo no ecrã) e depois em "Adicionar ao ecrã principal". A app fica com um ícone, como as outras. Tem de ser no Safari.'
-          : android ? 'No Chrome, toca no menu (três pontos, em cima à direita) e depois em "Instalar app" ou "Adicionar ao ecrã principal".'
-          : 'No telemóvel, abre este mesmo link e usa "Adicionar ao ecrã principal" no menu do navegador.';
-    $('#instalarTxt').textContent=t; $('#instalar').hidden=false;
-    $('#btnFecharInst').onclick=function(){ $('#instalar').hidden=true; try{ localStorage.setItem('remates_inst','1'); }catch(e){} };
+    function mostrar(t){ txt.textContent=t; box.hidden=false; }
+    $('#btnFecharInst').onclick=function(){ box.hidden=true; marcar(); };
+    if(ios){
+      mostrar('No Safari, toca no botão Partilhar (quadrado com seta para cima, em baixo no ecrã) e depois em "Adicionar ao ecrã principal". Tem de ser no Safari.');
+    } else {
+      var evt=null, tmr=null;
+      window.addEventListener('beforeinstallprompt', function(e){
+        e.preventDefault(); evt=e; clearTimeout(tmr);
+        mostrar('Instala a app para a abrires pelo ícone, sem passar pelo navegador.');
+        btn.hidden=false;
+        btn.onclick=function(){
+          if(!evt) return;
+          evt.prompt();
+          evt.userChoice.then(function(c){ if(c && c.outcome==='accepted'){ marcar(); box.hidden=true; } evt=null; });
+        };
+      });
+      tmr=setTimeout(function(){
+        if(evt) return;
+        mostrar(android ? 'No Chrome, toca no menu (três pontos) e em "Instalar app".' : 'No telemóvel, abre este link e usa "Adicionar ao ecrã principal" no menu do navegador.');
+      }, 2500);
+    }
   })();
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
   $('#btnAddMed').onclick=function(){ cur().meds.push({comp:'',qtd:1}); renderMeds(); };
   $('#btnDup').onclick=duplicar;
   $('#mat').oninput=function(){ cur().mat=this.value; };

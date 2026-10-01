@@ -3,7 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Levantamento de remates</title>
+<title>Remates</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Remates">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1f5f8b">
+<link rel="apple-touch-icon" href="icon-180.png">
 <style>
 :root{
   --bg:#e9edf0; --card:#f8fafb; --ink:#16212a; --muted:#56646f; --line:#cfd6db;
@@ -186,7 +192,15 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
       <button class="b" id="btnBack" type="button">Voltar a editar</button>
       <button class="b primary" id="btnSend" type="button">Enviar</button>
     </div>
+    <div id="acesso" hidden style="margin-top:10px">
+      <label style="margin:0">Chave de acesso (só fora do Telegram)
+        <input id="chave" type="password" autocomplete="off" placeholder="Introduz uma vez; fica guardada neste aparelho">
+      </label>
+    </div>
     <p class="hint" id="sendMsg" hidden></p>
+    <div class="row" id="saveRow" hidden>
+      <button class="b primary" id="btnSave" type="button">Guardar DXF</button>
+    </div>
     <textarea id="json" readonly hidden></textarea>
     <div class="row" id="copyRow" hidden>
       <button class="b" id="btnCopy" type="button">Copiar dados</button>
@@ -645,8 +659,29 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     avisos().forEach(function(t){ var li=document.createElement('li'); li.textContent='Aviso · '+t; wl.append(li); });
     $('#btnSend').disabled=pr.length>0;
     $('#sendMsg').hidden=true; $('#json').hidden=true; $('#copyRow').hidden=true;
+    var dentro = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
+    $('#acesso').hidden = !!dentro; if(!dentro && !$('#chave').value) $('#chave').value=lerChave();
+    $('#saveRow').hidden=true;
     $('#review').hidden=false;
     $('#review').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  var lastDxf=null;
+  function lerChave(){ try{ return localStorage.getItem('remates_chave')||''; }catch(e){ return ''; } }
+  function gravarChave(v){ try{ localStorage.setItem('remates_chave',v); }catch(e){} }
+  function guardarDxf(){
+    if(!lastDxf) return;
+    var blob=new Blob([lastDxf.text],{type:'application/dxf'});
+    try{
+      var file=new File([blob],lastDxf.name,{type:'application/dxf'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        navigator.share({files:[file],title:lastDxf.name}).catch(function(){});
+        return;
+      }
+    }catch(e){}
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=lastDxf.name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },4000);
   }
   function send(){
     var p=payload();
@@ -654,13 +689,27 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     p.telegram_user = uid ? String(uid) : '';
     var msg=$('#sendMsg'); msg.hidden=false;
     function mostraDados(){ $('#json').value=JSON.stringify(p,null,2); $('#json').hidden=false; $('#copyRow').hidden=false; }
-    if(!uid){ msg.textContent='Abre a app a partir do bot no Telegram para poderes enviar. Estes são os dados que seguiriam.'; mostraDados(); return; }
-    $('#btnSend').disabled=true; msg.textContent='A enviar…';
+    if(!uid){
+      var k=$('#chave').value.trim()||lerChave();
+      if(!k){ msg.textContent='Introduz a chave de acesso para poderes enviar.'; $('#chave').focus(); return; }
+      gravarChave(k); p.chave=k;
+    }
+    $('#btnSend').disabled=true; msg.textContent='A enviar…'; $('#saveRow').hidden=true;
     fetch(URL_ENVIO,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})
       .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return {ok:r.ok,j:j}; }); })
       .then(function(x){
-        if(x.ok && x.j.ok){ msg.textContent='Enviado. O DXF chegou à conversa do bot ('+x.j.remates+' remate(s), '+x.j.folhas+' folha(s)).'; }
-        else { msg.textContent = (x.j && x.j.erro==='nao autorizado') ? 'Sem autorização para enviar.' : 'Não foi possível enviar. Tenta outra vez.'; $('#btnSend').disabled=false; mostraDados(); }
+        if(x.ok && x.j.ok){
+          var info=x.j.remates+' remate(s), '+x.j.folhas+' folha(s)';
+          if(x.j.dxf && !uid){
+            lastDxf={name:x.j.ficheiro||'remates.dxf', text:x.j.dxf};
+            $('#saveRow').hidden=false;
+            msg.textContent='Enviado ('+info+'). Toca em "Guardar DXF" para o guardar neste aparelho; também chegou ao Telegram.';
+          } else { msg.textContent='Enviado. O DXF chegou à conversa do bot ('+info+').'; }
+        }
+        else {
+          msg.textContent = (x.j && x.j.erro==='nao autorizado') ? (uid ? 'Sem autorização para enviar.' : 'Chave de acesso errada.') : 'Não foi possível enviar. Tenta outra vez.';
+          $('#btnSend').disabled=false; mostraDados();
+        }
       })
       .catch(function(){ msg.textContent='Sem ligação. Tenta outra vez.'; $('#btnSend').disabled=false; mostraDados(); });
   }
@@ -685,6 +734,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   $('#peca').oninput=function(){ S.peca=this.value; };
   $('#zona').oninput=function(){ cur().zona=this.value; renderChips(); renderZonas(); };
   $('#notas').oninput=function(){ cur().notas=this.value; };
+  $('#btnSave').onclick=guardarDxf;
   $('#btnAddMed').onclick=function(){ cur().meds.push({comp:'',qtd:1}); renderMeds(); };
   $('#btnDup').onclick=duplicar;
   $('#mat').oninput=function(){ cur().mat=this.value; };

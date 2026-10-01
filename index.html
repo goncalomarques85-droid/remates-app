@@ -70,6 +70,12 @@ svg#cv{
 .face{fill:none;stroke:var(--face);stroke-width:3.5;stroke-linecap:round}
 .pt{fill:var(--steel)}
 .lbl{fill:var(--muted);font-size:11px;font-family:inherit}
+.pill{fill:var(--card);stroke:var(--line);stroke-width:1}
+.pill.sel{stroke:var(--steel);stroke-width:2.2;fill:var(--bg)}
+.hit{fill:transparent;pointer-events:all;cursor:pointer}
+.ed{margin-top:10px;background:var(--card);border:1.5px solid var(--steel);border-radius:10px;padding:10px}
+.ed-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.ed-top .b{flex:0 0 auto;min-height:38px;padding:6px 12px}
 .lbl.len{fill:var(--ink);font-size:12px;font-weight:600;text-anchor:middle}
 .lbl.ang{text-anchor:middle}
 .lbl.tag{font-size:10.5px}
@@ -159,11 +165,13 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     <div id="cvBtns" class="row"></div>
     <p id="cvHint" class="hint"></p>
     <p id="cvStatus" class="status"></p>
-  </section>
 
-  <section class="card">
-    <h2>Medidas</h2>
-    <div id="list"></div>
+    <div id="ed" class="ed" hidden>
+      <div class="ed-top"><strong id="edTitle"></strong><button class="b" id="edClose" type="button">Concluído</button></div>
+      <div class="field"><input id="edVal" type="number" inputmode="decimal" aria-label="Valor"><span class="unit" id="edUnit"></span></div>
+      <div class="quick" id="edQuick"></div>
+      <div class="row" id="edActs" style="margin-top:8px"></div>
+    </div>
   </section>
 
   <section class="card" id="endsCard">
@@ -254,7 +262,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   function novo(zona){
     return { zona:zona||'', mode:'draw', pts:[], h0:0, segs:[], angs:[], dirs:[],
       ini:{tipo:null,lado:null}, fim:{tipo:null,lado:null}, face:null,
-      meds:[{comp:'',qtd:1}], notas:'', mat:'', cor:'', view:null };
+      meds:[{comp:'',qtd:1}], notas:'', mat:'', cor:'', view:null, sel:null };
   }
   S.rem.push(novo(''));
 
@@ -373,17 +381,40 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     if(aN) g+=aN.svg;
     Q.forEach(function(p){ g+='<circle class="pt" cx="'+p.x+'" cy="'+p.y+'" r="3.5"/>'; });
 
-    for(i=0;i<n;i++){
-      var sideN=(r.face==='esquerda')?rightN(D[i]):leftN(D[i]);
-      var lx=(Q[i].x+Q[i+1].x)/2+sideN.x*14, ly=(Q[i].y+Q[i+1].y)/2+sideN.y*14+4;
-      g+='<text class="lbl len" x="'+lx+'" y="'+ly+'">'+fmt(+r.segs[i]||0)+'</text>';
+    var sel=r.sel||{}, placed=[];
+    function pw(txt){ return Math.max(26,String(txt).length*7.2+12); }
+    function box(cx,cy,txt){ var w=pw(txt); return {x1:cx-w/2-3,x2:cx+w/2+3,y1:cy-14,y2:cy+14}; }
+    function clash(b){
+      if(b.x1<6||b.x2>W-6||b.y1<6||b.y2>H-6) return true;
+      for(var q=0;q<placed.length;q++){ var o=placed[q]; if(!(b.x2<o.x1||b.x1>o.x2||b.y2<o.y1||b.y1>o.y2)) return true; }
+      return false;
     }
+    function pill(cx,cy,txt,k,i2,cls){
+      var w=pw(txt), on=(sel.k===k&&sel.i===i2);
+      placed.push(box(cx,cy,txt));
+      return '<rect class="pill'+(on?' sel':'')+'" x="'+(cx-w/2)+'" y="'+(cy-11)+'" width="'+w+'" height="22" rx="11"/>'+
+             '<text class="lbl '+cls+'" x="'+cx+'" y="'+(cy+4)+'">'+txt+'</text>'+
+             '<rect class="hit" data-k="'+k+'" data-i="'+i2+'" x="'+(cx-w/2-6)+'" y="'+(cy-20)+'" width="'+(w+12)+'" height="40"/>';
+    }
+    /* angulos primeiro (posicao fixa, dentro da dobra); os comprimentos desviam-se de quem estiver no caminho */
+    var angG='', lenG='';
     for(i=0;i<n-1;i++){
       var a=D[i], b=D[i+1], vx=b.x-a.x, vy=b.y-a.y, vl=Math.hypot(vx,vy);
       var dir;
       if(vl<1e-6){ dir=leftN(a); } else { dir={x:vx/vl,y:vy/vl}; }
-      g+='<text class="lbl ang" x="'+(Q[i+1].x+dir.x*15)+'" y="'+(Q[i+1].y+dir.y*15+4)+'">'+(r.angs[i]||0)+'°</text>';
+      angG+=pill(Q[i+1].x+dir.x*21,Q[i+1].y+dir.y*21,(r.angs[i]||0)+'°','ang',i,'ang');
     }
+    for(i=0;i<n;i++){
+      var sideN=(r.face==='esquerda')?rightN(D[i]):leftN(D[i]);
+      var mx2=(Q[i].x+Q[i+1].x)/2, my2=(Q[i].y+Q[i+1].y)/2, txt=fmt(+r.segs[i]||0), pick=null, tryD=[18,30,42,-18,-30,-42,0];
+      for(var tk=0;tk<tryD.length&&!pick;tk++){
+        var cx2=mx2+sideN.x*tryD[tk], cy2=my2+sideN.y*tryD[tk];
+        if(!clash(box(cx2,cy2,txt))) pick={x:cx2,y:cy2};
+      }
+      if(!pick) pick={x:mx2+sideN.x*18,y:my2+sideN.y*18};
+      lenG+=pill(pick.x,pick.y,txt,'seg',i,'len');
+    }
+    g+=lenG+angG;
     var u0={x:-D[0].x,y:-D[0].y}, uN=D[n-1];
     g+='<text class="lbl tag" text-anchor="middle" x="'+(Q[0].x+u0.x*(a0?26:16))+'" y="'+(Q[0].y+u0.y*(a0?26:16)+4)+'">início</text>';
     g+='<text class="lbl tag" text-anchor="middle" x="'+(Q[n].x+uN.x*(aN?26:16))+'" y="'+(Q[n].y+uN.y*(aN?26:16)+4)+'">fim</text>';
@@ -420,65 +451,20 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
       k.onclick=function(){ concluir(r); loadAll(); };
       bt.append(u,c,k);
       $('#cvHint').textContent = r.pts.length<2
-        ? 'Toca na grelha para marcar os vértices, do início para o fim. Os valores exatos escreves a seguir.'
+        ? 'Toca na grelha para marcar os vértices, do início para o fim. Depois ajustas os valores exatos tocando nos números.'
         : 'Toca para continuar o perfil, ou carrega em “Concluir perfil”.';
       $('#cvStatus').innerHTML='';
     } else {
       var rd=mk('button','b','Redesenhar'); rd.type='button';
       twoTap(rd,'Redesenhar',function(){ r.mode='draw'; r.pts=[]; r.segs=[]; r.angs=[]; r.dirs=[]; r.face=null; r.ini={tipo:null,lado:null}; r.fim={tipo:null,lado:null}; loadAll(); });
       bt.append(rd);
-      $('#cvHint').textContent='';
+      $('#cvHint').textContent='Toca num comprimento ou num ângulo para o editar.';
       $('#cvStatus').innerHTML = r.face
         ? 'Cor principal: lado <b>'+r.face+'</b>. Toca no outro lado para mudar.'
         : 'Toca no desenho, do lado onde fica a cor principal.';
     }
   }
 
-  function renderList(){
-    var r=cur(), box=$('#list'); box.innerHTML='';
-    if(r.mode!=='edit'){
-      box.append(mk('p','hint','Conclui o perfil no desenho para escreveres aqui as medidas e os ângulos exatos.'));
-      return;
-    }
-    for(var i=0;i<r.segs.length;i++){
-      box.append(rowSeg(r,i));
-      if(i<r.angs.length) box.append(rowAng(r,i));
-    }
-  }
-  function rowSeg(r,i){
-    var row=mk('div','seg-row'), nm=mk('div','name','Troço '+(i+1));
-    var f=mk('div','field'), inp=document.createElement('input');
-    inp.type='number'; inp.inputMode='decimal'; inp.min='0'; inp.value=r.segs[i];
-    inp.setAttribute('aria-label','Comprimento do troço '+(i+1)+' em milímetros');
-    inp.oninput=function(){ r.segs[i]=parseFloat(inp.value)||0; renderCanvas(); renderTotals(); };
-    f.append(inp, mk('span','unit','mm'));
-    if(r.segs.length>1 && (i===0 || i===r.segs.length-1)){
-      var del=mk('button','b','✕'); del.type='button'; del.style.flex='0 0 auto'; del.style.minHeight='40px';
-      del.setAttribute('aria-label','Apagar o troço '+(i+1));
-      twoTap(del,'✕',function(){ removerTroco(r,i===0); });
-      f.append(del);
-    }
-    row.append(nm,f); return row;
-  }
-  function rowAng(r,i){
-    var wrap=mk('div','ang-row'), row=mk('div','seg-row');
-    var nm=mk('div','name','Dobra '+(i+1)); var small=mk('small',null,'ângulo interior entre abas'); nm.append(small);
-    var f=mk('div','field'), inp=document.createElement('input');
-    inp.type='number'; inp.inputMode='decimal'; inp.min='5'; inp.max='180'; inp.value=r.angs[i];
-    inp.setAttribute('aria-label','Ângulo interior da dobra '+(i+1)+' em graus');
-    inp.oninput=function(){ var v=parseFloat(inp.value); if(isNaN(v)) return; r.angs[i]=Math.max(5,Math.min(180,v)); renderCanvas(); };
-    var flip=mk('button','b',dirTxt(r.dirs[i])); flip.type='button'; flip.style.flex='0 0 auto';
-    flip.setAttribute('aria-label','Mudar o sentido da dobra '+(i+1));
-    flip.onclick=function(){ r.dirs[i]=-r.dirs[i]; flip.textContent=dirTxt(r.dirs[i]); renderCanvas(); };
-    f.append(inp, mk('span','unit','°'), flip); row.append(nm,f);
-    var q=mk('div','quick');
-    [45,90,135,180].forEach(function(v){
-      var b=mk('button','b',v+'°'); b.type='button';
-      b.onclick=function(){ r.angs[i]=v; inp.value=v; renderCanvas(); };
-      q.append(b);
-    });
-    wrap.append(row,q); return wrap;
-  }
   function dirTxt(d){ return d<0 ? '↶ esquerda' : '↷ direita'; }
 
   function renderEnds(){
@@ -550,10 +536,11 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   function loadAll(){
     var r=cur();
     $('#remTitle').textContent='Remate '+(S.cur+1)+' de '+S.rem.length;
+    r.sel=null; $('#ed').hidden=true;
     $('#zona').value=r.zona; $('#notas').value=r.notas;
     $('#mat').value=r.mat; $('#cor').value=r.cor;
     $('#btnDel').style.display = S.rem.length>1 ? '' : 'none';
-    renderChips(); renderZonas(); renderCanvas(); renderList(); renderEnds(); renderTotals(); renderMeds();
+    renderChips(); renderZonas(); renderCanvas(); renderEnds(); renderTotals(); renderMeds();
   }
 
   function renderMeds(){
@@ -791,8 +778,49 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   $('#mat').oninput=function(){ cur().mat=this.value; };
   $('#cor').oninput=function(){ cur().cor=this.value; };
 
+  function fecharEd(){ var r=cur(); r.sel=null; $('#ed').hidden=true; renderCanvas(); }
+  function abrirEd(k,i){
+    var r=cur(); if(r.mode!=='edit') return;
+    r.sel={k:k,i:i}; renderCanvas();
+    var ed=$('#ed'), inp=$('#edVal'), q=$('#edQuick'), ac=$('#edActs');
+    q.innerHTML=''; ac.innerHTML=''; ed.hidden=false;
+    if(k==='seg'){
+      $('#edTitle').textContent='Troço '+(i+1)+' · comprimento';
+      $('#edUnit').textContent='mm'; inp.min='0'; inp.removeAttribute('max'); inp.value=r.segs[i];
+      inp.oninput=function(){ r.segs[i]=parseFloat(inp.value)||0; renderCanvas(); renderTotals(); };
+      if(r.segs.length>1 && (i===0 || i===r.segs.length-1)){
+        var del=mk('button','b','Apagar este troço'); del.type='button';
+        twoTap(del,'Apagar este troço',function(){ removerTroco(r,i===0); });
+        ac.append(del);
+      }
+    } else {
+      $('#edTitle').textContent='Dobra '+(i+1)+' · ângulo interior entre abas';
+      $('#edUnit').textContent='°'; inp.min='5'; inp.max='180'; inp.value=r.angs[i];
+      inp.oninput=function(){ var v=parseFloat(inp.value); if(isNaN(v)) return; r.angs[i]=Math.max(5,Math.min(180,v)); renderCanvas(); };
+      [45,90,135,180].forEach(function(v){
+        var b=mk('button','b',v+'°'); b.type='button';
+        b.onclick=function(){ r.angs[i]=v; inp.value=v; renderCanvas(); };
+        q.append(b);
+      });
+      var flip=mk('button','b','Sentido: '+dirTxt(r.dirs[i])); flip.type='button';
+      flip.setAttribute('aria-label','Mudar o sentido da dobra '+(i+1));
+      flip.onclick=function(){ r.dirs[i]=-r.dirs[i]; flip.textContent='Sentido: '+dirTxt(r.dirs[i]); renderCanvas(); };
+      ac.append(flip);
+    }
+    inp.focus(); try{ inp.select(); }catch(e){}
+    try{ ed.scrollIntoView({block:'nearest',behavior:'smooth'}); }catch(e){}
+  }
+  $('#edClose').onclick=fecharEd;
+  $('#edVal').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); this.blur(); fecharEd(); } });
+
   $('#cv').addEventListener('click',function(e){
-    var r=cur(), b=this.getBoundingClientRect();
+    var r=cur();
+    if(r.mode==='edit'){
+      var t=e.target.closest?e.target.closest('[data-k]'):null;
+      if(t){ abrirEd(t.getAttribute('data-k'), parseInt(t.getAttribute('data-i'),10)); return; }
+      if(r.sel){ r.sel=null; $('#ed').hidden=true; }
+    }
+    var b=this.getBoundingClientRect();
     var x=(e.clientX-b.left)*W/b.width, y=(e.clientY-b.top)*H/b.height;
     if(r.mode==='draw'){
       var p={x:Math.max(0,Math.min(W,Math.round(x/10)*10)), y:Math.max(0,Math.min(H,Math.round(y/10)*10))};

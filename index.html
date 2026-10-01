@@ -75,7 +75,8 @@ svg#cv{
 .zinfo{align-self:center;font-size:13px;color:var(--muted);margin-left:auto}
 .shape{fill:none;stroke:var(--shape);stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
 .acc{fill:none;stroke:var(--steel);stroke-width:3.5;stroke-linejoin:round;stroke-linecap:round}
-.face{fill:none;stroke:var(--face);stroke-width:3.5;stroke-linecap:round}
+.face{fill:none;stroke:var(--face);stroke-width:2.2;stroke-linecap:round}
+.facef{fill:var(--face)}
 .pt{fill:var(--steel)}
 .lbl{fill:var(--muted);font-size:11px;font-family:inherit}
 .pill{fill:var(--card);stroke:var(--line);stroke-width:1}
@@ -164,9 +165,14 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
 
   <section class="card">
     <h2 id="remTitle">Remate 1</h2>
-    <label>Zona
-      <input id="zona" list="zonas" placeholder="ex.: Platibanda norte" autocomplete="off">
-    </label>
+    <div style="display:flex;gap:10px">
+      <label style="flex:0 0 92px;min-width:0">Nº
+        <input id="rnum" placeholder="R1" autocomplete="off" aria-label="Numeração do remate">
+      </label>
+      <label style="flex:1;min-width:0">Nome do remate
+        <input id="zona" list="zonas" placeholder="ex.: Platibanda norte" autocomplete="off">
+      </label>
+    </div>
     <datalist id="zonas"></datalist>
 
     <svg id="cv" viewBox="0 0 340 260" role="img" aria-label="Perfil do remate"></svg>
@@ -227,6 +233,8 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     <p class="hint" id="sendMsg" hidden></p>
     <div class="row" id="saveRow" hidden>
       <button class="b primary" id="btnSave" type="button">Guardar DXF</button>
+      <button class="b primary" id="btnSavePdf" type="button">Guardar PDF</button>
+      <button class="b" id="btnShare" type="button" hidden>Partilhar…</button>
     </div>
     <textarea id="json" readonly hidden></textarea>
     <div class="row" id="copyRow" hidden>
@@ -269,7 +277,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
 
   var S = { obra:'', peca:'', rem:[], cur:0 };
   function novo(zona){
-    return { zona:zona||'', mode:'draw', pts:[], h0:0, segs:[], angs:[], dirs:[],
+    return { zona:zona||'', num:'', mode:'draw', pts:[], h0:0, segs:[], angs:[], dirs:[],
       ini:{tipo:null,lado:null}, fim:{tipo:null,lado:null}, face:null,
       meds:[{comp:'',qtd:1}], notas:'', mat:'', cor:'', view:null, sel:null, dv:{lvl:1,cx:null,cy:null} };
   }
@@ -396,7 +404,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     if(info.tipo==='vinco'){
       var L=Math.min(Math.max(POS_VINCO*s,12),segPx*0.6);
       var C={x:E.x-u.x*L,y:E.y-u.y*L};
-      var th=30*Math.PI/180*ns*(isStart?-1:1);
+      var th=20*Math.PI/180*ns*(isStart?-1:1);
       var td={x:u.x*Math.cos(th)-u.y*Math.sin(th), y:u.x*Math.sin(th)+u.y*Math.cos(th)};
       var T={x:C.x+td.x*L,y:C.y+td.y*L};
       return {move:C, svg:'<polyline class="acc" points="'+C.x+','+C.y+' '+T.x+','+T.y+'"/>'};
@@ -428,15 +436,6 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     if(a0&&a0.move) Q2[0]=a0.move;
     if(aN&&aN.move) Q2[n]=aN.move;
 
-    if(r.face){
-      for(i=0;i<n;i++){
-        var f=r.face==='esquerda'?leftN(D[i]):rightN(D[i]);
-        g+='<line class="face" x1="'+(Q[i].x+f.x*6)+'" y1="'+(Q[i].y+f.y*6)+'" x2="'+(Q[i+1].x+f.x*6)+'" y2="'+(Q[i+1].y+f.y*6)+'"/>';
-      }
-      var f0=r.face==='esquerda'?leftN(D[0]):rightN(D[0]);
-      var mx=(Q[0].x+Q[1].x)/2+f0.x*19, my=(Q[0].y+Q[1].y)/2+f0.y*19+4;
-      g+='<text class="lbl cor" x="'+mx+'" y="'+my+'">COR</text>';
-    }
     g+='<polyline class="shape" points="'+Q2.map(function(p){return p.x+','+p.y;}).join(' ')+'"/>';
     if(a0) g+=a0.svg;
     if(aN) g+=aN.svg;
@@ -483,7 +482,38 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     var uu0={x:-D[0].x,y:-D[0].y}, uuN=D[n-1];
     placed.push({x1:Q[0].x+uu0.x*(a0?26:16)-18,x2:Q[0].x+uu0.x*(a0?26:16)+18,y1:Q[0].y+uu0.y*(a0?26:16)-9,y2:Q[0].y+uu0.y*(a0?26:16)+4});
     placed.push({x1:Q[n].x+uuN.x*(aN?26:16)-12,x2:Q[n].x+uuN.x*(aN?26:16)+12,y1:Q[n].y+uuN.y*(aN?26:16)-9,y2:Q[n].y+uuN.y*(aN?26:16)+4});
-    if(r.face && typeof mx!=='undefined') placed.push({x1:mx-16,x2:mx+16,y1:my-13,y2:my+3});
+    /* seta COR: aponta para o lado escolhido, sem atravessar o perfil nem tapar valores */
+    if(r.face){
+      var fsd=(r.face==='esquerda'), ord2=[], oi2, fi2, li3, arrow=null, arrow0=null, lensA=[34,26,18,12], fracs=[0.5,0.25,0.75,0.12,0.88];
+      for(i=0;i<n;i++) ord2.push(i);
+      var segLen=function(k0){ return Math.hypot(Q2[k0+1].x-Q2[k0].x,Q2[k0+1].y-Q2[k0].y); };
+      ord2.sort(function(a1,b1){ return segLen(b1)-segLen(a1); });
+      var cr2=function(a1,b1,c1){ return (b1.x-a1.x)*(c1.y-a1.y)-(b1.y-a1.y)*(c1.x-a1.x); };
+      var cruza2=function(a1,b1,c1,d1){ return cr2(a1,b1,c1)*cr2(a1,b1,d1)<0 && cr2(c1,d1,a1)*cr2(c1,d1,b1)<0; };
+      for(oi2=0;oi2<ord2.length&&!arrow;oi2++) for(fi2=0;fi2<fracs.length&&!arrow;fi2++) for(li3=0;li3<lensA.length&&!arrow;li3++){
+        var k2=ord2[oi2], nv=fsd?leftN(D[k2]):rightN(D[k2]);
+        var mxa=Q2[k2].x+(Q2[k2+1].x-Q2[k2].x)*fracs[fi2], mya=Q2[k2].y+(Q2[k2+1].y-Q2[k2].y)*fracs[fi2];
+        var hd={x:mxa+nv.x*6,y:mya+nv.y*6}, tl={x:mxa+nv.x*(6+lensA[li3]),y:mya+nv.y*(6+lensA[li3])};
+        var ext=Math.abs(nv.x)*17+Math.abs(nv.y)*8+3;
+        var tcx=tl.x+nv.x*ext, tcy=tl.y+nv.y*ext, tb={x1:tcx-15,x2:tcx+15,y1:tcy-8,y2:tcy+8};
+        var cand={hd:hd,tl:tl,tb:tb}; if(!arrow0) arrow0=cand;
+        if(!dentro(tb)||!dentro({x1:tl.x,x2:tl.x,y1:tl.y,y2:tl.y})) continue;
+        var bad2=false, q3;
+        for(q3=0;q3<LINES.length;q3++){
+          if(cruza2(tl,hd,{x:LINES[q3][0],y:LINES[q3][1]},{x:LINES[q3][2],y:LINES[q3][3]})||segRect(LINES[q3],tb,4)){ bad2=true; break; }
+        }
+        for(q3=0;q3<placed.length&&!bad2;q3++){ if(hitB(tb,placed[q3],3)) bad2=true; }
+        if(bad2) continue;
+        arrow=cand;
+      }
+      if(!arrow) arrow=arrow0;
+      var adx=arrow.hd.x-arrow.tl.x, ady=arrow.hd.y-arrow.tl.y, adl=Math.hypot(adx,ady)||1; adx/=adl; ady/=adl;
+      var bx0=arrow.hd.x-adx*8, by0=arrow.hd.y-ady*8;
+      g+='<line class="face" x1="'+arrow.tl.x+'" y1="'+arrow.tl.y+'" x2="'+bx0+'" y2="'+by0+'"/>'+
+         '<polygon class="facef" points="'+arrow.hd.x+','+arrow.hd.y+' '+(bx0-ady*4)+','+(by0+adx*4)+' '+(bx0+ady*4)+','+(by0-adx*4)+'"/>'+
+         '<text class="lbl cor" x="'+((arrow.tb.x1+arrow.tb.x2)/2)+'" y="'+((arrow.tb.y1+arrow.tb.y2)/2+4)+'">COR</text>';
+      placed.push(arrow.tb); LINES.push([arrow.tl.x,arrow.tl.y,arrow.hd.x,arrow.hd.y]);
+    }
     /* ângulos primeiro (dentro da dobra), depois os comprimentos; nenhuma etiqueta fica sobre outra */
     var angG='', lenG='';
     for(i=0;i<n-1;i++){
@@ -578,25 +608,23 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     var e=r[key], d=mk('div','end');
     d.append(mk('h3',null,title));
     var t=mk('div','row');
-    [['dobra','Dobra'],['vinco','Vinco de reforço']].forEach(function(o){
-      var b=mk('button','b'+(e.tipo===o[0]?' on':''),o[1]); b.type='button';
-      b.onclick=function(){ e.tipo=o[0]; renderEnds(); renderCanvas(); renderTotals(); };
+    [[null,'Aba lisa'],['dobra','Dobra'],['vinco','Vinco de reforço']].forEach(function(o){
+      var on=(o[0]===null ? !e.tipo : e.tipo===o[0]);
+      var b=mk('button','b'+(on?' on':''),o[1]); b.type='button';
+      b.onclick=function(){ if(o[0]===null){ e.tipo=null; e.lado=null; } else { e.tipo=o[0]; } renderEnds(); renderCanvas(); renderTotals(); };
       t.append(b);
     });
     d.append(t);
     if(e.tipo){
-      var s=mk('div','row');
+      var s2=mk('div','row');
       [['esquerda','↶ Esquerda'],['direita','Direita ↷']].forEach(function(o){
         var b=mk('button','b'+(e.lado===o[0]?' on':''),o[1]); b.type='button';
         b.onclick=function(){ e.lado=o[0]; renderEnds(); renderCanvas(); };
-        s.append(b);
+        s2.append(b);
       });
-      d.append(s);
-      var cl=mk('button','b','Sem tratamento nesta aba'); cl.type='button'; cl.style.marginTop='6px';
-      cl.onclick=function(){ e.tipo=null; e.lado=null; renderEnds(); renderCanvas(); renderTotals(); };
-      d.append(cl);
+      d.append(s2);
     } else {
-      d.append(mk('p','hint','Sem tratamento. Podes concluir o remate assim; aparece só um aviso na revisão.'));
+      d.append(mk('p','hint','Aba lisa: sem dobra nem vinco. Podes concluir o remate assim; aparece só um aviso na revisão.'));
     }
     return d;
   }
@@ -612,15 +640,16 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     var c=calc(cur());
     if(!c){ $('#totBig').textContent='—'; $('#totSm').textContent='perfil por concluir'; return; }
     $('#totBig').textContent=fmt(c.total)+' mm';
-    var falta=(!cur().ini.tipo||!cur().fim.tipo)?' · aba sem tratamento':'';
+    var falta=(!cur().ini.tipo||!cur().fim.tipo)?' · aba lisa':'';
     $('#totSm').innerHTML='troços '+fmt(c.trocos)+' + pontas '+fmt(c.pontas)+'<br>cotas interiores'+falta;
   }
 
+  function numDe(r,i){ var n=(r.num||'').trim(); return n||('R'+(i+1)); }
   function renderChips(){
     var c=$('#chips'); c.innerHTML='';
     S.rem.forEach(function(r,i){
       var z=r.zona.trim();
-      var b=mk('button','chip'+(i===S.cur?' on':''),'R'+(i+1)+(z?' · '+z.slice(0,14):''));
+      var b=mk('button','chip'+(i===S.cur?' on':''),numDe(r,i)+(z?' · '+z.slice(0,14):''));
       b.type='button'; b.onclick=function(){ S.cur=i; $('#review').hidden=true; loadAll(); };
       c.append(b);
     });
@@ -636,6 +665,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     $('#remTitle').textContent='Remate '+(S.cur+1)+' de '+S.rem.length;
     r.sel=null; $('#ed').hidden=true;
     $('#zona').value=r.zona; $('#notas').value=r.notas;
+    $('#rnum').value=r.num||''; $('#rnum').placeholder='R'+(S.cur+1);
     $('#mat').value=r.mat; $('#cor').value=r.cor;
     $('#btnDel').style.display = S.rem.length>1 ? '' : 'none';
     renderChips(); renderZonas(); renderCanvas(); renderEnds(); renderTotals(); renderMeds();
@@ -663,7 +693,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     });
   }
   function duplicar(){
-    var r=cur(), c=JSON.parse(JSON.stringify(r)); c.view=null;
+    var r=cur(), c=JSON.parse(JSON.stringify(r)); c.view=null; c.num='';
     S.rem.splice(S.cur+1,0,c); S.cur=S.cur+1; $('#review').hidden=true; loadAll();
     window.scrollTo({top:0,behavior:'smooth'});
   }
@@ -680,7 +710,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     if(last && last.zona.trim()) askZone(last.zona.trim()); else pushRemate('',false);
   }
   function askZone(z){
-    $('#dlgTxt').textContent='Mesma zona do remate anterior ('+z+')?';
+    $('#dlgTxt').textContent='Mesmo nome do remate anterior ('+z+')?';
     $('#dlg').hidden=false;
     $('#dlgSim').onclick=function(){ $('#dlg').hidden=true; pushRemate(z,false); };
     $('#dlgNao').onclick=function(){ $('#dlg').hidden=true; pushRemate('',true); };
@@ -698,7 +728,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     if(!S.peca.trim()) out.push('Falta a localização / edifício.');
     S.rem.forEach(function(r,i){
       var n='Remate '+(i+1)+': ';
-      if(!r.zona.trim()) out.push(n+'falta a zona.');
+      if(!r.zona.trim()) out.push(n+'falta o nome do remate.');
       if(r.mode!=='edit'||r.segs.length<1){ out.push(n+'perfil por concluir.'); return; }
       if(r.segs.some(function(v){return !(v>0);})) out.push(n+'há troços sem medida.');
       if(r.ini.tipo&&!r.ini.lado) out.push(n+'aba inicial: falta o lado (esquerda/direita).');
@@ -716,8 +746,8 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     S.rem.forEach(function(r,i){
       if(r.mode!=='edit') return;
       var n='Remate '+(i+1)+': ';
-      if(!r.ini.tipo) out.push(n+'aba inicial sem tratamento.');
-      if(!r.fim.tipo) out.push(n+'aba final sem tratamento.');
+      if(!r.ini.tipo) out.push(n+'aba inicial lisa (sem dobra nem vinco).');
+      if(!r.fim.tipo) out.push(n+'aba final lisa (sem dobra nem vinco).');
     });
     return out;
   }
@@ -727,7 +757,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
       remates:S.rem.map(function(r,i){
         var c=calc(r);
         return {
-          numero:i+1, zona:r.zona.trim(),
+          numero:i+1, numeracao:numDe(r,i), zona:r.zona.trim(), nome_completo:numDe(r,i)+(r.zona.trim()?' - '+r.zona.trim():''),
           orientacao_inicial_graus:r.h0,
           trocos_mm:r.segs.map(Number),
           dobras:r.angs.map(function(a,k){ return {angulo_interior_graus:a, sentido:r.dirs[k]<0?'esquerda':'direita'}; }),
@@ -745,7 +775,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     var ul=$('#revList'); ul.innerHTML='';
     S.rem.forEach(function(r,i){
       var c=calc(r), li=document.createElement('li');
-      li.textContent='R'+(i+1)+' · '+(r.zona.trim()||'sem zona')+' · '+(c?fmt(c.total)+' mm de desenvolvimento':'por concluir');
+      li.textContent=numDe(r,i)+' · '+(r.zona.trim()||'sem nome')+' · '+(c?fmt(c.total)+' mm de desenvolvimento':'por concluir');
       ul.append(li);
     });
     var pr=problems(), pl=$('#revProb'); pl.innerHTML='';
@@ -760,7 +790,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     $('#review').hidden=false;
     $('#review').scrollIntoView({behavior:'smooth',block:'start'});
   }
-  var lastDxf=null;
+  var lastDxf=null, lastPdf=null;
   function chaveDoLink(){ try{ var m=location.hash.match(/[#&]k=([^&]+)/); return m?decodeURIComponent(m[1]):''; }catch(e){ return ''; } }
   function lerChave(){ var g=''; try{ g=localStorage.getItem('remates_chave')||''; }catch(e){} return chaveDoLink()||g; }
   function gravarChave(v){ try{ localStorage.setItem('remates_chave',v); }catch(e){} }
@@ -789,6 +819,36 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     document.body.appendChild(a); a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },4000);
   }
+  function ehMovel(){ var ua=navigator.userAgent||''; return /iPhone|iPad|iPod|Android/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints>1); }
+  function descarregar(blob,nome){
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=nome;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },4000);
+  }
+  function pdfBlob(){
+    var bin=atob(lastPdf.b64), u=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+    return new Blob([u],{type:'application/pdf'});
+  }
+  function guardarPdf(){
+    if(!lastPdf) return;
+    var blob=pdfBlob();
+    if(ehMovel()){
+      try{
+        var f=new File([blob],lastPdf.name,{type:'application/pdf'});
+        if(navigator.canShare && navigator.canShare({files:[f]})){ navigator.share({files:[f]}).catch(function(){}); return; }
+      }catch(e){}
+    }
+    descarregar(blob,lastPdf.name);
+  }
+  function partilharTudo(){
+    var fs=[];
+    try{
+      if(lastDxf) fs.push(new File([lastDxf.text],lastDxf.name,{type:'application/octet-stream'}));
+      if(lastPdf) fs.push(new File([pdfBlob()],lastPdf.name,{type:'application/pdf'}));
+      if(fs.length && navigator.canShare && navigator.canShare({files:fs})) navigator.share({files:fs}).catch(function(){});
+    }catch(e){}
+  }
   function send(){
     var p=payload();
     var uid = TG && TG.initDataUnsafe && TG.initDataUnsafe.user ? TG.initDataUnsafe.user.id : null;
@@ -806,11 +866,16 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
       .then(function(x){
         if(x.ok && x.j.ok){
           var info=x.j.remates+' remate(s), '+x.j.folhas+' folha(s)'+(x.j.dxf?', DXF de '+Math.max(1,Math.round(x.j.dxf.length/1024))+' KB':'');
-          if(x.j.dxf && !uid){
-            lastDxf={name:x.j.ficheiro||'remates.dxf', text:x.j.dxf};
+          if((x.j.dxf||x.j.pdf) && !uid){
+            lastDxf=x.j.dxf?{name:x.j.ficheiro||'remates.dxf', text:x.j.dxf}:null;
+            lastPdf=x.j.pdf?{name:x.j.ficheiro_pdf||'remates.pdf', b64:x.j.pdf}:null;
+            $('#btnSave').hidden=!lastDxf; $('#btnSavePdf').hidden=!lastPdf;
+            var podePartilhar=false;
+            try{ podePartilhar=!!(navigator.canShare && navigator.canShare({files:[new File(['x'],'a.pdf',{type:'application/pdf'})]})); }catch(e){}
+            $('#btnShare').hidden=!podePartilhar;
             $('#saveRow').hidden=false;
-            msg.textContent='Enviado ('+info+'). Toca em "Guardar DXF" para o guardar neste aparelho; também chegou ao Telegram.';
-          } else { msg.textContent='Enviado. O DXF chegou à conversa do bot ('+info+').'; }
+            msg.textContent='Enviado ('+info+'). Guarda ou partilha o DXF e o PDF com os botões abaixo; também chegaram ao Telegram.';
+          } else { msg.textContent='Enviado. O DXF e o PDF chegaram à conversa do bot ('+info+').'; }
         }
         else {
           msg.textContent = (x.j && x.j.erro==='nao autorizado') ? (uid ? 'Sem autorização para enviar.' : 'Chave de acesso errada.') : 'Não foi possível enviar. Tenta outra vez.';
@@ -840,8 +905,11 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   sel.onchange=function(){ S.obra=sel.value; };
   $('#peca').oninput=function(){ S.peca=this.value; };
   $('#zona').oninput=function(){ cur().zona=this.value; renderChips(); renderZonas(); };
+  $('#rnum').oninput=function(){ cur().num=this.value; renderChips(); };
   $('#notas').oninput=function(){ cur().notas=this.value; };
   $('#btnSave').onclick=guardarDxf;
+  $('#btnSavePdf').onclick=guardarPdf;
+  $('#btnShare').onclick=partilharTudo;
   (function(){
     var dentroTg = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
     var instalada = (window.navigator.standalone === true) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);

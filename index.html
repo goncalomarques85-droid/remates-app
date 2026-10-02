@@ -156,9 +156,13 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
     <label>Obra
       <select id="obra"></select>
     </label>
-    <label style="margin:0">Localização / edifício
+    <label style="margin:0 0 12px">Localização / edifício
       <input id="peca" placeholder="ex.: Edifício A – fachada norte" autocomplete="off">
     </label>
+    <label style="margin:0">Nº do desenho
+      <input id="ndes" inputmode="numeric" placeholder="ex.: 34" autocomplete="off">
+    </label>
+    <p class="hint" id="ndesHint" hidden></p>
   </section>
 
   <div id="chips" class="chips" aria-label="Remates desta peça"></div>
@@ -275,7 +279,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   var ACR_DOBRA = 12, ACR_VINCO = 0, POS_VINCO = 15;
   var W = 340, H = 260;
 
-  var S = { obra:'', peca:'', rem:[], cur:0 };
+  var S = { obra:'', peca:'', ndes:'', rem:[], cur:0 };
   function novo(zona){
     return { zona:zona||'', num:'', mode:'draw', pts:[], h0:0, segs:[], angs:[], dirs:[],
       ini:{tipo:null,lado:null}, fim:{tipo:null,lado:null}, face:null,
@@ -743,6 +747,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   }
   function avisos(){
     var out=[];
+    if(!S.ndes.trim()) out.push('Falta o nº do desenho: fica em branco na legenda.');
     S.rem.forEach(function(r,i){
       if(r.mode!=='edit') return;
       var n='Remate '+(i+1)+': ';
@@ -753,7 +758,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   }
   function payload(){
     return {
-      obra:S.obra, peca:S.peca.trim(),
+      obra:S.obra, peca:S.peca.trim(), numero_desenho:S.ndes.trim(),
       remates:S.rem.map(function(r,i){
         var c=calc(r);
         return {
@@ -865,6 +870,7 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
       .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return {ok:r.ok,j:j}; }); })
       .then(function(x){
         if(x.ok && x.j.ok){
+          try{ if(S.ndes.trim()) localStorage.setItem('remates_ndes',S.ndes.trim()); }catch(e){}
           var info=x.j.remates+' remate(s), '+x.j.folhas+' folha(s)'+(x.j.dxf?', DXF de '+Math.max(1,Math.round(x.j.dxf.length/1024))+' KB':'');
           if((x.j.dxf||x.j.pdf) && !uid){
             lastDxf=x.j.dxf?{name:x.j.ficheiro||'remates.dxf', text:x.j.dxf}:null;
@@ -904,6 +910,8 @@ textarea{width:100%;min-height:200px;margin-top:10px;font:12px/1.4 ui-monospace,
   });
   sel.onchange=function(){ S.obra=sel.value; };
   $('#peca').oninput=function(){ S.peca=this.value; };
+  $('#ndes').oninput=function(){ S.ndes=this.value; };
+  try{ var ult=localStorage.getItem('remates_ndes'); if(ult){ $('#ndesHint').textContent='Último desenho enviado: '+ult; $('#ndesHint').hidden=false; } }catch(e){}
   $('#zona').oninput=function(){ cur().zona=this.value; renderChips(); renderZonas(); };
   $('#rnum').oninput=function(){ cur().num=this.value; renderChips(); };
   $('#notas').oninput=function(){ cur().notas=this.value; };
